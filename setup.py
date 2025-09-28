@@ -1,73 +1,116 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-import json
-import os
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+苹果ID自动登录工具 - 安装脚本
+"""
+
 import subprocess
-
-from setuptools import find_packages, setup
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-PACKAGE_JSON = os.path.join(BASE_DIR, "superset-frontend", "package.json")
+import sys
+import os
 
 
-with open(PACKAGE_JSON) as package_file:
-    version_string = json.load(package_file)["version"]
-
-
-def get_git_sha() -> str:
+def install_requirements():
+    """安装Python依赖"""
     try:
-        output = subprocess.check_output(["git", "rev-parse", "HEAD"])  # noqa: S603, S607
-        return output.decode().strip()
-    except Exception:  # pylint: disable=broad-except
-        return ""
+        print("正在安装Python依赖...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+        print("依赖安装完成！")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"依赖安装失败: {e}")
+        return False
 
 
-GIT_SHA = get_git_sha()
-version_info = {"GIT_SHA": GIT_SHA, "version": version_string}
-print("-==-" * 15)
-print("VERSION: " + version_string)
-print("GIT SHA: " + GIT_SHA)
-print("-==-" * 15)
+def check_chrome():
+    """检查Chrome浏览器是否安装"""
+    try:
+        # 检查Chrome是否在PATH中
+        subprocess.run(["google-chrome", "--version"], 
+                      capture_output=True, check=True)
+        print("✓ Chrome浏览器已安装")
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        try:
+            # 尝试其他可能的Chrome命令
+            subprocess.run(["chromium-browser", "--version"], 
+                          capture_output=True, check=True)
+            print("✓ Chromium浏览器已安装")
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("⚠ 未检测到Chrome/Chromium浏览器")
+            print("请安装Google Chrome浏览器: https://www.google.com/chrome/")
+            return False
 
-VERSION_INFO_FILE = os.path.join(BASE_DIR, "superset", "static", "version_info.json")
 
-with open(VERSION_INFO_FILE, "w") as version_file:
-    json.dump(version_info, version_file)
+def setup_chromedriver():
+    """设置ChromeDriver"""
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+        print("正在下载并配置ChromeDriver...")
+        ChromeDriverManager().install()
+        print("✓ ChromeDriver配置完成")
+        return True
+    except ImportError:
+        print("正在安装webdriver-manager...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "webdriver-manager"])
+        return setup_chromedriver()
+    except Exception as e:
+        print(f"ChromeDriver配置失败: {e}")
+        print("请手动下载ChromeDriver: https://chromedriver.chromium.org/")
+        return False
 
-# translating 'no version' from npm to pypi to prevent warning msg
-version_string = version_string.replace("-dev", ".dev0")
 
-setup(
-    version=version_string,
-    packages=find_packages(),
-    include_package_data=True,
-    zip_safe=False,
-    entry_points={
-        "console_scripts": ["superset=superset.cli.main:superset"],
-        # the `postgres` and `postgres+psycopg2://` schemes were removed in SQLAlchemy 1.4  # noqa: E501
-        # add an alias here to prevent breaking existing databases
-        "sqlalchemy.dialects": [
-            "postgres.psycopg2 = sqlalchemy.dialects.postgresql:dialect",
-            "postgres = sqlalchemy.dialects.postgresql:dialect",
-            "superset = superset.extensions.metadb:SupersetAPSWDialect",
-        ],
-        "shillelagh.adapter": [
-            "superset=superset.extensions.metadb:SupersetShillelaghAdapter"
-        ],
-    },
-    download_url="https://www.apache.org/dist/superset/" + version_string,
-)
+def create_config():
+    """创建配置文件"""
+    config_file = "config.json"
+    if not os.path.exists(config_file):
+        print("创建配置文件...")
+        with open(config_file, 'w', encoding='utf-8') as f:
+            f.write("""{
+    "apple_id": "",
+    "password": "",
+    "apple_website": "https://appleid.apple.com/",
+    "chrome_driver_path": "",
+    "headless": false,
+    "wait_timeout": 10
+}""")
+        print(f"✓ 配置文件已创建: {config_file}")
+        print("请编辑config.json文件，填写您的Apple ID和密码")
+    else:
+        print("✓ 配置文件已存在")
+
+
+def main():
+    """主安装流程"""
+    print("苹果ID自动登录工具 - 安装向导")
+    print("=" * 50)
+    
+    # 1. 安装Python依赖
+    if not install_requirements():
+        print("❌ 安装失败：无法安装Python依赖")
+        return False
+    
+    # 2. 检查Chrome浏览器
+    check_chrome()
+    
+    # 3. 设置ChromeDriver
+    setup_chromedriver()
+    
+    # 4. 创建配置文件
+    create_config()
+    
+    print("\n" + "=" * 50)
+    print("✓ 安装完成！")
+    print("\n使用步骤：")
+    print("1. 编辑 config.json 文件，填写您的Apple ID和密码")
+    print("2. 运行: python apple_auto_login.py")
+    print("\n注意事项：")
+    print("- 请确保网络连接正常")
+    print("- 如果开启了双重认证，需要手动输入验证码")
+    print("- 请妥善保管配置文件中的密码信息")
+    
+    return True
+
+
+if __name__ == "__main__":
+    main()
