@@ -1,0 +1,8 @@
+{
+    "apple_id": "",
+    "password": "",
+    "apple_website": "https://appleid.apple.com/",
+    "chrome_driver_path": "",
+    "headless": false,
+    "wait_timeout": 10
+}
